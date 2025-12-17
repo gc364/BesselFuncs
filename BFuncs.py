@@ -114,22 +114,29 @@ class BesselFuncs:
         J = torch.zeros_like(x)
         if torch.sign(nu) != -1.:
             for zi in range(x.shape[0]):
-                ###For imag(Z)>0
-                if x[zi].imag > 0:
-                    I= self.ZBINU(nu,-1j*x[zi])
-                  
-                    J[zi] = torch.exp(nu*torch.pi*1j/2)*I
+                
+                if x[zi].real <=0: #If the real part of z is -ve then the condition on the imaginary part has to change. No clue why
+                    if x[zi].imag >= 0:  
+                        I= self.ZBINU(nu,-1j*x[zi])
+                        J[zi] = torch.exp((nu*torch.pi*1j)/2)*I
+                    else:
+                        I= self.ZBINU(nu,1j*x[zi])
+                        J[zi] = torch.exp((-nu*torch.pi*1j)/2)*I
                 else:
-                    ##For Imag(Z)< 0
-                    I= self.ZBINU(nu,1j*x[zi])
-                    J[zi] = torch.exp(-nu*torch.pi*1j/2)*I
+                    if x[zi].imag > 0:   
+                        I= self.ZBINU(nu,-1j*x[zi])
+                        J[zi] = torch.exp((nu*torch.pi*1j)/2)*I
+                    else:
+                        I= self.ZBINU(nu,1j*x[zi])
+                        J[zi] = torch.exp((-nu*torch.pi*1j)/2)*I
+
             return J
 
         
     def ZBINU(self,nu,z):
         """Conglomeration of all the methods of computing modified bessel functions of the 1st kind.
         Will choose the appropiate one given the values of z"""
-       
+        
         if (torch.sign(torch.min(z.real)) == -1 ) :
             if (torch.abs(z)<=5) :
                 return self.ZSERI(nu,z)
@@ -140,8 +147,8 @@ class BesselFuncs:
         else:
             if (torch.abs(z)<=5) :
                 return self.ZSERI(nu,z)
-            elif z.imag <0:
-                return self.ZASYI(nu,z*torch.exp(torch.tensor(1j*torch.pi)))
+            elif z.imag <=0:
+                return self.ZASYI(nu,z)#*torch.exp(nu*torch.pi*1j)
             else:
                 return self.ZASYI(nu,z)
         
@@ -374,7 +381,7 @@ def tests():
         ax.plot(x,spec.yv(nu,x),linestyle='--')
     ax.set_ylim(-1)
     plt.legend()
-    #plt.show()
+    plt.show()
     plt.close()
     ######################
     ######ZSERI TEST#####
@@ -412,7 +419,7 @@ def tests():
     print(f'{'#'*5} ZASYI Tests {'#'*2}')
     print('#'*20)
     fig, ax  = plt.subplots()
-    x = torch.linspace(-100j,0,1000)#[-2,-1,0,1,2]
+    x = torch.linspace(5,10,100)#[-2,-1,0,1,2]
     I = [0.1j,1j,2j]
     C = [0.1,1+1j,1+2j,2+1j,2+2j]
     args = [x,torch.tensor(I),torch.tensor(C)]
@@ -425,13 +432,13 @@ def tests():
         for i in range(3):
             
             a =torch.tensor(nu)
-            ya = BesselFuncs().ZASYI(a,args[i]*torch.exp(torch.tensor(1j*torch.pi)),True)#*torch.exp(torch.tensor(1j*torch.pi/2))
+            ya = BesselFuncs().ZASYI(a,args[i])#*torch.exp(torch.tensor(1j*torch.pi/2))
             
             if i==0 :
-                ax.plot(args[i].imag,ya.abs(),label=f'{nu}')
-                ax.plot(args[i].imag,abs(spec.iv(nu,args[i])),linestyle='--',label=f'{nu}')
+                ax.plot(args[i],ya.real,label=f'{nu}')
+                ax.plot(args[i],spec.iv(nu,args[i]).real,linestyle='--',label=f'{nu}')
                 ax.set_title(labels[i])
-                ax.set_ylim(-10,10)
+                ax.set_ylim(-2,2)
                 print(f'{labels[i]} % Error: {(((ya-spec.iv(nu,args[i]))/ya).mean())*100} %')
 
             else:
