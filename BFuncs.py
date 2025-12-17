@@ -111,7 +111,8 @@ class BesselFuncs:
         Follows AMOS FORTRAN implementation zbesj.f
         Bessel function of the first kind"""
         #x+=1e-6j
-        J = torch.zeros_like(x)
+        J = torch.zeros_like(x,dtype=torch.complex128)
+        x = x.to(torch.complex128)
         if torch.sign(nu) != -1.:
             for zi in range(x.shape[0]):
                 
@@ -131,6 +132,29 @@ class BesselFuncs:
                         J[zi] = torch.exp((-nu*torch.pi*1j)/2)*I
 
             return J
+        else:
+            ##This reflects the order with a Bessel function of the second kind
+            
+            nu = -nu
+            for zi in range(x.shape[0]):
+            
+                if x[zi].real <=0: #If the real part of z is -ve then the condition on the imaginary part has to change. No clue why
+                    if x[zi].imag >= 0:  
+                        I= self.ZBINU(nu,-1j*x[zi])
+                        J[zi] = torch.exp((nu*torch.pi*1j)/2)*I
+                    else:
+                        I= self.ZBINU(nu,1j*x[zi])
+                        J[zi] = torch.exp((-nu*torch.pi*1j)/2)*I
+                else:
+                    if x[zi].imag > 0:   
+                        I= self.ZBINU(nu,-1j*x[zi])
+                        J[zi] = torch.exp((nu*torch.pi*1j)/2)*I
+                    else:
+                        I= self.ZBINU(nu,1j*x[zi])
+                        J[zi] = torch.exp((-nu*torch.pi*1j)/2)*I
+                J[zi] = J[zi]*torch.cos(torch.pi*nu)-self.ZBESY(nu,x[zi])*torch.sin(torch.pi*nu)
+            return J
+
 
         
     def ZBINU(self,nu,z):
@@ -141,9 +165,8 @@ class BesselFuncs:
             if (torch.abs(z)<=5) :
                 return self.ZSERI(nu,z)
             else:
-                rCp =  self.ZASYI(nu,torch.exp(1j*torch.pi)*z)#Calculate in the right half of the complex plane
-                print(rCp)
-                return rCp *torch.exp(-nu*torch.pi)##spin around to the left
+                rCp =  self.ZASYI(nu,torch.exp(torch.tensor(1j*torch.pi))*z)#Calculate in the right half of the complex plane
+                return rCp *torch.exp(nu*torch.pi)##spin around to the left
         else:
             if (torch.abs(z)<=5) :
                 return self.ZSERI(nu,z)
@@ -152,8 +175,55 @@ class BesselFuncs:
             else:
                 return self.ZASYI(nu,z)
         
+    def ZBESY(self,nu,z):
+        """Computes the Bessel function of the second kind for complex argument and Real order.
+        Requires Hankel functions where M=1 and M=2
+         
+           Y(FNU,Z)=0.5*(H(1,FNU,Z)-H(2,FNU,Z))/I """
+        norm = 0.5/1j
+        return norm*(self.ZBESH(1,nu,z)-self.ZBESH(2,nu,z))
+    def ZBESH(self,m,nu,z):
+        """ Computes the Hankel functions for complex argument and Real order.
+            H(M,FNU,Z)=(1/MP)*EXP(-MP*FNU)*K(FNU,Z*EXP(-MP))
+                MP=MM*HPI*I,  MM=3-2*M,  HPI=PI/2,  I**2=-1
 
+            FOR M=1 OR 2 WHERE THE K BESSEL FUNCTION IS COMPUTED FOR THE
+            RIGHT HALF PLANE RE(Z).GE.0.0. THE K FUNCTION IS CONTINUED
+            TO THE LEFT HALF PLANE BY THE RELATION
 
+            K(FNU,Z*EXP(MP)) = EXP(-MP*FNU)*K(FNU,Z)-MP*I(FNU,Z)
+            MP=MR*PI*I, MR=+1 OR -1, RE(Z).GT.0, I**2=-1
+
+            WHERE I(FNU,Z) IS THE I BESSEL FUNCTION."""
+        
+        if nu>=0:
+            if m ==1:
+                norm = 2/(torch.pi*1j)
+                t1 = torch.exp(-1j*torch.pi*nu/2)*self.kv(nu,z*torch.exp(torch.tensor(-torch.pi*1j/2)))
+            if m==2:
+                norm=-2/(torch.pi*1j)
+                t1 =  torch.exp(1j*torch.pi*nu/2)*self.kv(nu,z*torch.exp(torch.tensor(torch.pi*1j/2)))
+            H= norm*t1
+        else:
+            nu=-nu
+            if m ==1:
+                norm = 2/(torch.pi*1j)
+                t1 = torch.exp(-1j*torch.pi*nu/2)*self.kv(nu,z*torch.exp(torch.tensor(-torch.pi*1j/2)))
+                H= norm*t1
+                H = H*torch.exp(torch.pi*1j*nu)
+            if m==2:
+                norm=-2/(torch.pi*1j)
+                t1 =  torch.exp(1j*torch.pi*nu/2)*self.kv(nu,z*torch.exp(torch.tensor(torch.pi*1j/2)))
+                H= norm*t1
+                H = H*torch.exp(-torch.pi*1j*nu)
+            
+        
+        
+        return H
+    
+    def kv(self,nu,z):
+        """Computes the modified Bessel function of the second kind for complex argument and real order"""
+        return torch.sqrt(torch.pi/(2*z))*torch.exp(-z)
     def BSecondOrder(self,a,xf,eps,ya,ya1):
         """Reimplemtation of Bessel functions of the second kind, from Temme 1976
         a: Order: Tensor (Real)
@@ -381,7 +451,7 @@ def tests():
         ax.plot(x,spec.yv(nu,x),linestyle='--')
     ax.set_ylim(-1)
     plt.legend()
-    plt.show()
+    #plt.show()
     plt.close()
     ######################
     ######ZSERI TEST#####
@@ -410,7 +480,7 @@ def tests():
             else:
                 print(f'{labels[i]} % Error: {(((spec.iv(nu,args[i])-ya)/ya).mean())*100} %')
     plt.legend()
-    plt.show()
+    #plt.show()
     plt.close()
     ######################
     ######ZASYI TEST#####
@@ -444,7 +514,7 @@ def tests():
             else:
                 print(f'{labels[i]} % Error: {(((spec.iv(nu,args[i])-ya)/ya).mean())*100} %')
     plt.legend()
-    plt.show()
+    #plt.show()
     plt.close()
 
     ##################
@@ -460,7 +530,7 @@ def tests():
     args = [x,torch.tensor(I),torch.tensor(C)]
     labels = ['Real','Imaginary','Complex']
   
-    for nu in [0,0.5,1,2]:
+    for nu in [-2,-1,-0.5,0,1]:
         print('#'*10)
         print(f'Order = {nu} \n')
         
@@ -479,6 +549,14 @@ def tests():
                 print(f'{labels[i]} % Error: {(((spec.jv(nu,args[i])-ya)/ya).mean())*100} %')
     plt.legend()
     plt.show()
+
+    ##########Backprop test######################
+    ## x is a leaf node 
+    x = torch.linspace(-10,10,100,requires_grad=True)
+    j = BesselFuncs().jv(torch.tensor(0),x)
+    j.real.mean().backward()
+    print(f'dj/dx = {x.grad}')
+
 
 
 tests()
