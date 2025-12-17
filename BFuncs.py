@@ -224,6 +224,25 @@ class BesselFuncs:
     def kv(self,nu,z):
         """Computes the modified Bessel function of the second kind for complex argument and real order"""
         return torch.sqrt(torch.pi/(2*z))*torch.exp(-z)
+    
+    def jvp(self,v,z,n):
+        return self._bessel_diff_formula(v,z,n,self.jv,-1)
+
+    def _bessel_diff_formula(self,v, z, n, L, phase):
+        """Taken directly from SciPy"""
+        
+        # from AMS55.
+        # L(v, z) = J(v, z), Y(v, z), H1(v, z), H2(v, z), phase = -1
+        # L(v, z) = I(v, z) or exp(v*pi*i)K(v, z), phase = 1
+        # For K, you can pull out the exp((v-k)*pi*i) into the caller
+        
+        p = 1.0
+        s = L(v-n, z)
+        for i in range(1, n+1):
+            p = phase * (p * (n-i+1)) / i   # = choose(k, i)
+            s += p*L(v-n + i*2, z)
+        return s / (2.**n)
+
     def BSecondOrder(self,a,xf,eps,ya,ya1):
         """Reimplemtation of Bessel functions of the second kind, from Temme 1976
         a: Order: Tensor (Real)
@@ -550,7 +569,18 @@ def tests():
     plt.legend()
     plt.show()
 
+    ###########################
+    ###########jvp Test########
+    print('#'*20)
+    print(f'{'#'*5} jvp Tests {'#'*2}')
+    print('#'*20)
+    real = spec.jvp(1,x,1)
+    print(f'% Error: {((real-BesselFuncs().jvp(torch.tensor(1),x,1))/real).mean()*100} %')
+
     ##########Backprop test######################
+    print('#'*20)
+    print(f'{'#'*5} Backprop Tests {'#'*2}')
+    print('#'*20)
     ## x is a leaf node 
     x = torch.linspace(-10,10,100,requires_grad=True)
     j = BesselFuncs().jv(torch.tensor(0),x)
