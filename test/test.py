@@ -117,12 +117,17 @@ def tests():
                 print(f'{labels[i]} % Error: {(((spec.jv(nu,args[i])-ya)/ya).mean())*100} %')
     ax.set_ylim(5,-5)
     plt.legend()
-    plt.show()
+    #plt.show()
     plt.close()
     #### x hould have dim(nu) columns and z rows.
+
+
+    #########THIS IS EXACTLY WHAT PYPROP8 DOES, MOST IMPORTANT TEST##########
+    #########################################################################
+    #########################################################################
     x = torch.linspace(-10,10,100,dtype=torch.complex128).tile([5,1]).T
     print(x.shape)
-    nu = torch.linspace(-2,3,5)
+    nu = torch.arange(-2,3)
     fig,ax = plt.subplots()
     J = BesselFuncs.jv(nu,x)
     Jr  = spec.jv(nu,x)

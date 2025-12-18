@@ -8,34 +8,35 @@ def Pochhammer(nu,k):
     num=1
     s = 0
     for i in range(1,2*k,2):
-        
-        num*=((4*nu**2)-(i**2))
-        s+=1/((4*nu**2)-(i**2))
+        iv = ((4*nu**2)-(i**2))
+        num*=iv
+        s+=1/iv
     den = 2**(3*k)*torch.special.gammaln(torch.tensor(k+1)).exp()
 
     return num/den
     
 
 
-def ZASYI(nu,z,BR=False):
+def ZASYI(nu,z):
     """Modified Bessel function 1st kind using the asymptotic expansion for large abs(z)
     Only valid for positve abs(z)
     Uses DMLF 10.4.E.5"""
     N = math.ceil(max(abs(nu)-0.5,1))
     
-    norm2 = torch.exp(z)/torch.sqrt(2*torch.pi*z)
-    norm1 = (1j*torch.exp(-z+torch.pi*nu*1j))/torch.sqrt(2*torch.pi*z)
-    if BR:
-        norm1 = (1j*torch.exp(-z-torch.pi*nu*1j))/torch.sqrt(2*torch.pi*z)
+    RT2PIZ = torch.sqrt(2*torch.pi*z)
+
+    norm2 = torch.exp(z)/RT2PIZ
+    norm1 = (1j*torch.exp(-z+torch.pi*nu*1j))/RT2PIZ
+    
     t1=0
     t2=0
     for k in range(N):
         a = Pochhammer(nu,k)
-        
+        kv = ((z)**k)
         #Term 1
-        t1+=a/((z)**k)
+        t1+=a/kv
         #Term 2
-        t2+= ((-1)**(k)*a)/((z)**k)
+        t2+= ((-1)**(k)*a)/kv
 
     return norm1*t1+norm2*t2
     
@@ -76,48 +77,61 @@ def jv(nu,x)->torch.Tensor:
 
 def _jv(nu,x,eps=1e-12,ya=0,ya1=0):
     ##This takes a scalar nu and 1D tensor x
-    
+    #TODO: Make this slice the array up into the right calculation ranges, then process each slice in one go
+
     J = torch.zeros_like(x,dtype=torch.complex128)
     x = x.to(torch.complex128)
+
     if torch.sign(nu) != -1.:
-        for zi in range(x.shape[0]):
-            
-            if x[zi].real <=0: #If the real part of z is -ve then the condition on the imaginary part has to change. No clue why
-                if x[zi].imag >= 0:  
-                    I= ZBINU(nu,-1j*x[zi])
-                    J[zi] = torch.exp((nu*torch.pi*1j)/2)*I
-                else:
-                    I= ZBINU(nu,1j*x[zi])
-                    J[zi] = torch.exp((-nu*torch.pi*1j)/2)*I
-            else:
-                if x[zi].imag > 0:   
-                    I= ZBINU(nu,-1j*x[zi])
-                    J[zi] = torch.exp((nu*torch.pi*1j)/2)*I
-                else:
-                    I= ZBINU(nu,1j*x[zi])
-                    J[zi] = torch.exp((-nu*torch.pi*1j)/2)*I
+        EXPNUPIIHALF  = torch.exp((nu*torch.pi*1j)/2)
+        EXPNEGNUPIIHALF = torch.exp((-nu*torch.pi*1j)/2)
+        
+        rm = x.real<=0
+        rmim = (x.imag >= 0)&rm #negative real, postive imag
+        rmnim = (x.imag < 0)&rm #negative real, negative imag
+        nrm = x.real>0
+        nrmim = (x.imag > 0 )&nrm  #Positive real, positve imag
+        nrnmim = (x.imag <= 0 )&nrm #Positive real,negative image
+
+        I= ZBINU(nu,-1j*x[rmim])
+        J[rmim] = EXPNUPIIHALF*I
+    
+        I= ZBINU(nu,1j*x[rmnim])
+        J[rmnim] = EXPNEGNUPIIHALF*I
+
+        I= ZBINU(nu,-1j*x[nrmim])
+        J[nrmim] = EXPNUPIIHALF*I
+    
+        I= ZBINU(nu,1j*x[nrnmim])
+        J[nrnmim] = EXPNEGNUPIIHALF*I
 
         return J
     else:
         ##This reflects the order with a Bessel function of the second kind
         nu = -nu
-        for zi in range(x.shape[0]):
-        
-            if x[zi].real <=0: #If the real part of z is -ve then the condition on the imaginary part has to change. No clue why
-                if x[zi].imag >= 0:  
-                    I= ZBINU(nu,-1j*x[zi])
-                    J[zi] = torch.exp((nu*torch.pi*1j)/2)*I
-                else:
-                    I= ZBINU(nu,1j*x[zi])
-                    J[zi] = torch.exp((-nu*torch.pi*1j)/2)*I
-            else:
-                if x[zi].imag > 0:   
-                    I= ZBINU(nu,-1j*x[zi])
-                    J[zi] = torch.exp((nu*torch.pi*1j)/2)*I
-                else:
-                    I= ZBINU(nu,1j*x[zi])
-                    J[zi] = torch.exp((-nu*torch.pi*1j)/2)*I
-            J[zi] = J[zi]*torch.cos(torch.pi*nu)-ZBESY(nu,x[zi])*torch.sin(torch.pi*nu)
+        EXPNUPIIHALF  = torch.exp((nu*torch.pi*1j)/2)
+        EXPNEGNUPIIHALF = torch.exp((-nu*torch.pi*1j)/2)
+        ##Real part <= and > 0
+        rm = x.real<=0
+        rmim = (x.imag >= 0)&rm #negative real, postive imag
+        rmnim = (x.imag < 0)&rm #negative real, negative imag
+
+        nrm = x.real>0
+        nrmim = (x.imag > 0 )&nrm  #Positive real, positve imag
+        nrnmim = (x.imag <= 0 )&nrm #Positive real,negative image
+
+        I= ZBINU(nu,-1j*x[rmim])
+        J[rmim] = EXPNUPIIHALF*I
+    
+        I= ZBINU(nu,1j*x[rmnim])
+        J[rmnim] = EXPNEGNUPIIHALF*I
+
+        I= ZBINU(nu,-1j*x[nrmim])
+        J[nrmim] = EXPNUPIIHALF*I
+    
+        I= ZBINU(nu,1j*x[nrnmim])
+        J[nrnmim] = EXPNEGNUPIIHALF*I
+        J = J*torch.cos(torch.pi*nu)-ZBESY(nu,x)*torch.sin(torch.pi*nu)
         return J
 
 
@@ -125,19 +139,27 @@ def _jv(nu,x,eps=1e-12,ya=0,ya1=0):
 def ZBINU(nu,z):
     """Conglomeration of all the methods of computing modified bessel functions of the 1st kind.
     Will choose the appropiate one given the values of z"""
+    ret = torch.zeros_like(z,dtype=torch.complex128)
+    ####Masks: sign(z.real)==-1, abs(z)<=5
+    snegm = torch.sign(z.real)==-1
+    sposm = ~snegm
+
+    snegg5 = (torch.abs(z)>=5)&snegm
+    sposg5 = (torch.abs(z)>=5)&sposm
+
+    snegl5 = (torch.abs(z)<5)&snegm
+    sposl5 = (torch.abs(z)<5)&sposm
+
+    ret[snegl5] = ZSERI(nu,z[snegl5])
     
-    if (torch.sign(torch.min(z.real)) == -1 ) :
-        if (torch.abs(z)<=5) :
-            return ZSERI(nu,z)
-        else:
-            #Calculate in the right half of the complex plane
-            rCp =  ZASYI(nu,torch.exp(torch.tensor(1j*torch.pi))*z)
-            return rCp *torch.exp(nu*torch.pi)##spin around to the left
-    else:
-        if (torch.abs(z)<=5) :
-            return ZSERI(nu,z)
-        else:
-            return ZASYI(nu,z)
+    #Calculate in the right half of the complex plane then rotate
+    rCp =  ZASYI(nu,torch.exp(torch.tensor(1j*torch.pi))*z[snegg5])
+    ret[snegg5]  = rCp *torch.exp(nu*torch.pi)
+
+    ret[sposl5] =  ZSERI(nu,z[sposl5])
+
+    ret[sposg5] = ZASYI(nu,z[sposg5])
+    return ret
     
 def ZBESY(nu,z):
     """Computes the Bessel function of the second kind for complex argument and Real order.
