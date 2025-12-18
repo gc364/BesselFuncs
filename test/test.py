@@ -95,7 +95,7 @@ def tests():
     x = torch.linspace(-10,10,100,dtype=torch.complex128)#[-2,-1,0,1,2]
     I = [0.1j,1j,2j]
     C = [0.1,1+1j,1+2j,2+1j,2+2j]
-    args = [x,torch.tensor(I),torch.tensor(C)]
+    args = [x,torch.tensor(I,dtype=torch.complex128),torch.tensor(C,dtype=torch.complex128)]
     labels = ['Real','Imaginary','Complex']
   
     for nu in [-2,-1,-0.5,0,1]:
@@ -159,7 +159,7 @@ def tests():
     print(f'{'#'*5} Backprop Tests {'#'*2}')
     print('#'*20)
     ## x is a leaf node 
-    x = torch.linspace(-10,10,100,requires_grad=True)
+    x = torch.linspace(-10,10,100,requires_grad=True,dtype=torch.complex128)
     j = BesselFuncs.jv(torch.tensor(0),x)
     j.real.mean().backward()
     print(f'dj/dx = {x.grad}')
