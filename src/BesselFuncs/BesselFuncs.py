@@ -46,7 +46,7 @@ def ZSERI(nu,z):
     Valid for abs(z) = [-2,2]"""
     
     s = 0
-    for k in range(10):
+    for k in range(20):
         num = (z/2)**(2*k+nu)
         denom = torch.special.gammaln(torch.tensor(k+1)).exp()*torch.special.gammaln(nu+k+1).exp()
         s+=num/denom
@@ -71,7 +71,8 @@ def jv(nu,x)->torch.Tensor:
         nup = nu[n]
         Jp = _jv(nup,xp)
         J[:,n] = Jp
-    
+    m = J.isnan()
+    J[m] = 0
     return J
 
 
@@ -80,7 +81,7 @@ def _jv(nu,x,eps=1e-12,ya=0,ya1=0):
     #TODO: Make this slice the array up into the right calculation ranges, then process each slice in one go
 
     J = torch.zeros_like(x,dtype=torch.complex128)
-    x = x.to(torch.complex128)
+    
 
     if torch.sign(nu) != -1.:
         EXPNUPIIHALF  = torch.exp((nu*torch.pi*1j)/2)
@@ -230,7 +231,8 @@ def jvp(v,z,n)->torch.Tensor:
         nup = v[k]
         Jp = _bessel_diff_formula(nup,xp,n,_jv,-1)
         Jvp[:,k] = Jp
-    
+    m = Jvp.isnan()
+    Jvp[m] = 0
     return Jvp
 
 def _bessel_diff_formula(v, z, n, L, phase):
