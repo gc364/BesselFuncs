@@ -115,16 +115,39 @@ def tests():
 
             else:
                 print(f'{labels[i]} % Error: {(((spec.jv(nu,args[i])-ya)/ya).mean())*100} %')
+    ax.set_ylim(5,-5)
     plt.legend()
     plt.show()
-
+    plt.close()
+    #### x hould have dim(nu) columns and z rows.
+    x = torch.linspace(-10,10,100,dtype=torch.complex128).tile([5,1]).T
+    print(x.shape)
+    nu = torch.linspace(-2,3,5)
+    fig,ax = plt.subplots()
+    J = BesselFuncs.jv(nu,x)
+    Jr  = spec.jv(nu,x)
+    for i in range(5):
+        ax.plot(x[:,i].real,J[:,i].real,label=f'{nu[i]}')
+        ax.plot(x[:,i].real,Jr[:,i].real,label=f'{nu[i]}',linestyle='--')
+    ax.set_ylim(5,-5)
+    plt.legend()
+    plt.show()    
+    plt.close()
     ###########################
     ###########jvp Test########
     print('#'*20)
     print(f'{'#'*5} jvp Tests {'#'*2}')
     print('#'*20)
-    real = spec.jvp(1,x,1)
-    print(f'% Error: {((real-BesselFuncs.jvp(torch.tensor(1),x,1))/real).mean()*100} %')
+    fig,ax = plt.subplots()
+    jvpr = spec.jvp(nu,x,1)
+    jvp = BesselFuncs.jvp(nu,x,1)
+    for i in range(5):
+        ax.plot(x[:,i].real,jvp[:,i].real,label=f'{nu[i]}')
+        ax.plot(x[:,i].real,jvpr[:,i].real,label=f'{nu[i]}',linestyle='--')
+    plt.legend()
+    plt.show()  
+    ax.set_ylim(5,-5)  
+    print(f'% Error: {((jvpr-jvp)/jvpr).mean()*100} %')
 
     ##########Backprop test######################
     print('#'*20)

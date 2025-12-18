@@ -19,8 +19,9 @@ def Pochhammer(nu,k):
 
 def ZASYI(nu,z,BR=False):
     """Modified Bessel function 1st kind using the asymptotic expansion for large abs(z)
-    Only valid for positve abs(z), best with abs(nu)<1"""
-    N = math.ceil(max(abs(nu)-0.5,1))+10
+    Only valid for positve abs(z)
+    Uses DMLF 10.4.E.5"""
+    N = math.ceil(max(abs(nu)-0.5,1))
     
     norm2 = torch.exp(z)/torch.sqrt(2*torch.pi*z)
     norm1 = (1j*torch.exp(-z+torch.pi*nu*1j))/torch.sqrt(2*torch.pi*z)
@@ -44,18 +45,38 @@ def ZSERI(nu,z):
     Valid for abs(z) = [-2,2]"""
     
     s = 0
-    for k in range(100):
+    for k in range(10):
         num = (z/2)**(2*k+nu)
         denom = torch.special.gammaln(torch.tensor(k+1)).exp()*torch.special.gammaln(nu+k+1).exp()
         s+=num/denom
     return s
 
 
-def jv(nu,x,eps=1e-12,ya=0,ya1=0):
+def jv(nu,x)->torch.Tensor:
     """Reimplementation of scipy jv using pytorch.
     Follows AMOS FORTRAN implementation zbesj.f
     Bessel function of the first kind"""
-    #x+=1e-6j
+    
+    if len(nu.shape)>1:
+        raise ValueError('nu must be a 1D tensor')
+    elif len(nu.shape)==0:
+        return _jv(nu,x)
+
+    J = torch.zeros_like(x,dtype=torch.complex128)
+
+   
+    for n in range(nu.shape[0]):
+        xp = x[:,n]
+        nup = nu[n]
+        Jp = _jv(nup,xp)
+        J[:,n] = Jp
+    
+    return J
+
+
+def _jv(nu,x,eps=1e-12,ya=0,ya1=0):
+    ##This takes a scalar nu and 1D tensor x
+    
     J = torch.zeros_like(x,dtype=torch.complex128)
     x = x.to(torch.complex128)
     if torch.sign(nu) != -1.:
@@ -155,10 +176,40 @@ def ZBESH(m,nu,z):
 
 def kv(nu,z):
     """Computes the modified Bessel function of the second kind for complex argument and real order"""
+    #TODO: This needs work, this relation holds as abs(z)->\infty, but breaks down near zero. Need to implement the
+    # expnasions used by AMOS
+    # if torch.abs(z)>5 or torch.abs(z)<1:
+    #     return torch.sqrt(torch.pi/(2*z))*torch.exp(-z)
+    # else: 
+    #     return ZASYK(nu,z)
     return torch.sqrt(torch.pi/(2*z))*torch.exp(-z)
 
-def jvp(v,z,n):
-    return _bessel_diff_formula(v,z,n,jv,-1)
+def ZASYK(nu,z):
+    """Asymptotic expansion for K-Bessel function, DMLF 10.4.E.2"""
+    N = math.ceil(max(abs(nu)-0.5,1))+10
+    t=0
+    norm = torch.sqrt(torch.pi/2*z)*torch.exp(-z)
+    for k in range(N):
+        a = Pochhammer(nu,k)
+        t+=a/((z)**k)
+    return norm*t
+    
+
+def jvp(v,z,n)->torch.Tensor:
+    if len(v.shape)>1:
+        raise ValueError('v must be a 1D tensor')
+    elif len(v.shape)==0:
+        return _bessel_diff_formula(v,z,n,_jv,-1)
+
+    Jvp = torch.zeros_like(z,dtype=torch.complex128)
+
+    for k in range(v.shape[0]):
+        xp = z[:,k]
+        nup = v[k]
+        Jp = _bessel_diff_formula(nup,xp,n,_jv,-1)
+        Jvp[:,k] = Jp
+    
+    return Jvp
 
 def _bessel_diff_formula(v, z, n, L, phase):
     """Taken directly from SciPy"""
